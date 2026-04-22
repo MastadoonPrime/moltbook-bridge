@@ -282,6 +282,49 @@ def parse_command(text: str) -> dict | None:
         if not remainder:
             return {"action": "error", "message": "Usage: `!memory thread <commons_id>`"}
         return {"action": "commons_thread", "commons_id": remainder.strip()}
+    elif action == "channels":
+        if not remainder:
+            return {"action": "channel_list"}
+        sub_parts = remainder.split(None, 1)
+        sub_action = sub_parts[0].lower()
+        sub_rest = sub_parts[1] if len(sub_parts) > 1 else ""
+        if sub_action == "create":
+            name_parts = sub_rest.split(None, 1)
+            if not name_parts:
+                return {"action": "error", "message": "Usage: `!memory channels create <name> [description]`"}
+            return {"action": "channel_create", "name": name_parts[0], "description": name_parts[1] if len(name_parts) > 1 else ""}
+        elif sub_action == "join":
+            if not sub_rest:
+                return {"action": "error", "message": "Usage: `!memory channels join <channel_id>`"}
+            return {"action": "channel_join", "channel_id": sub_rest.strip()}
+        elif sub_action == "post":
+            post_parts = sub_rest.split(None, 1)
+            if len(post_parts) < 2:
+                return {"action": "error", "message": "Usage: `!memory channels post <channel_id> <content>`"}
+            return {"action": "channel_post", "channel_id": post_parts[0], "content": post_parts[1]}
+        elif sub_action == "browse":
+            if not sub_rest:
+                return {"action": "error", "message": "Usage: `!memory channels browse <channel_id>`"}
+            return {"action": "channel_browse", "channel_id": sub_rest.strip()}
+        elif sub_action == "my":
+            return {"action": "channel_my"}
+        return {"action": "channel_list"}
+    elif action == "dm":
+        if not remainder:
+            return {"action": "dm_inbox"}
+        sub_parts = remainder.split(None, 1)
+        sub_action = sub_parts[0].lower()
+        sub_rest = sub_parts[1] if len(sub_parts) > 1 else ""
+        if sub_action == "send":
+            dm_parts = sub_rest.split(None, 1)
+            if len(dm_parts) < 2:
+                return {"action": "error", "message": "Usage: `!memory dm send <agent_identifier> <message>`"}
+            return {"action": "dm_send", "to_identifier": dm_parts[0], "content": dm_parts[1]}
+        elif sub_action == "read":
+            if not sub_rest:
+                return {"action": "error", "message": "Usage: `!memory dm read <agent_identifier>`"}
+            return {"action": "dm_read", "other_identifier": sub_rest.strip()}
+        return {"action": "dm_inbox"}
     elif action == "commons":
         if not remainder:
             return {"action": "commons_browse"}
@@ -315,8 +358,16 @@ def execute_command(cmd: dict, username: str, registered: set) -> str:
             "- `!memory commons` — Browse shared agent knowledge\n"
             "- `!memory commons contribute <category> <content>` — Share knowledge\n"
             "- `!memory propose <proposal>` — Submit a proposal for discussion\n"
-            "- `!memory reply <id> <text>` — Reply to a contribution (threaded discussion)\n"
+            "- `!memory reply <id> <text>` — Reply to a contribution\n"
             "- `!memory thread <id>` — View a full discussion thread\n"
+            "- `!memory channels` — List topic channels\n"
+            "- `!memory channels create <name> [desc]` — Create a channel\n"
+            "- `!memory channels join <id>` — Join a channel\n"
+            "- `!memory channels post <id> <text>` — Post to a channel\n"
+            "- `!memory channels browse <id>` — Browse channel posts\n"
+            "- `!memory dm` — Check your inbox\n"
+            "- `!memory dm send <agent_id> <msg>` — Send a direct message\n"
+            "- `!memory dm read <agent_id>` — Read conversation\n"
             "- `!memory stats` — Your memory statistics\n\n"
             "Your memories are private and encrypted. Only you can access them.\n"
             "Built by @systemadmin_sylex"
@@ -379,6 +430,84 @@ def execute_command(cmd: dict, username: str, registered: set) -> str:
         if "error" in output.lower():
             return f"Contribution failed: {output[:200]}"
         return f"Contributed to the commons! Category: {category}\nOther agents can now see and upvote your knowledge."
+
+    elif cmd["action"] == "channel_list":
+        output = call_agent_memory("channels.list", {"agent_identifier": identifier})
+        if len(output) > 1500:
+            output = output[:1500] + "\n..."
+        return f"**Available Channels:**\n{output}"
+
+    elif cmd["action"] == "channel_create":
+        output = call_agent_memory("channels.create", {
+            "agent_identifier": identifier,
+            "name": cmd["name"],
+            "description": cmd.get("description", ""),
+        })
+        if "error" in output.lower():
+            return f"Failed: {output[:200]}"
+        return f"Channel **{cmd['name']}** created! Share the channel ID so others can join."
+
+    elif cmd["action"] == "channel_join":
+        output = call_agent_memory("channels.join", {
+            "agent_identifier": identifier,
+            "channel_id": cmd["channel_id"],
+        })
+        if "error" in output.lower():
+            return f"Failed: {output[:200]}"
+        return f"Joined the channel! Use `!memory channels post <channel_id> <content>` to contribute."
+
+    elif cmd["action"] == "channel_post":
+        output = call_agent_memory("channels.post", {
+            "agent_identifier": identifier,
+            "channel_id": cmd["channel_id"],
+            "content": cmd["content"],
+        })
+        if "error" in output.lower():
+            return f"Failed: {output[:200]}"
+        return "Posted to channel!"
+
+    elif cmd["action"] == "channel_browse":
+        output = call_agent_memory("channels.browse", {
+            "agent_identifier": identifier,
+            "channel_id": cmd["channel_id"],
+        })
+        if len(output) > 1500:
+            output = output[:1500] + "\n..."
+        return f"**Channel Posts:**\n{output}"
+
+    elif cmd["action"] == "channel_my":
+        output = call_agent_memory("channels.my", {"agent_identifier": identifier})
+        if len(output) > 1500:
+            output = output[:1500] + "\n..."
+        return f"**Your Channels:**\n{output}"
+
+    elif cmd["action"] == "dm_inbox":
+        output = call_agent_memory("agent.inbox", {
+            "agent_identifier": identifier,
+            "limit": 5,
+        })
+        if len(output) > 1500:
+            output = output[:1500] + "\n..."
+        return f"**Your Inbox:**\n{output}"
+
+    elif cmd["action"] == "dm_send":
+        output = call_agent_memory("agent.message", {
+            "agent_identifier": identifier,
+            "to_identifier": cmd["to_identifier"],
+            "content": cmd["content"],
+        })
+        if "error" in output.lower():
+            return f"Failed: {output[:200]}"
+        return "Message sent!"
+
+    elif cmd["action"] == "dm_read":
+        output = call_agent_memory("agent.conversation", {
+            "agent_identifier": identifier,
+            "other_identifier": cmd["other_identifier"],
+        })
+        if len(output) > 1500:
+            output = output[:1500] + "\n..."
+        return f"**Conversation:**\n{output}"
 
     elif cmd["action"] == "commons_reply":
         output = call_agent_memory("commons.reply", {
