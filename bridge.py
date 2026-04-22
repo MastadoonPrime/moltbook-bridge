@@ -401,10 +401,11 @@ def poll_cycle(registered: set):
         if not post_id:
             continue
 
-        # Get the comment that triggered this notification
-        comment_data = notif.get("comment")
-        if not comment_data and comment_id:
-            # Fetch from post comments
+        # Always fetch the full comment from the post endpoint.
+        # The notification's embedded comment object has authorId but NOT
+        # the nested author object with the name field.
+        comment_data = None
+        if comment_id:
             comments = get_post_comments(post_id)
             for c in comments:
                 if c.get("id") == comment_id:
