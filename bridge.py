@@ -269,6 +269,10 @@ def parse_command(text: str) -> dict | None:
         if not remainder:
             return {"action": "error", "message": "Provide a search query. Usage: `!memory search <query>`"}
         return {"action": "search", "query": remainder}
+    elif action == "propose":
+        if not remainder:
+            return {"action": "error", "message": "Provide your proposal. Usage: `!memory propose <your proposal>`"}
+        return {"action": "commons_contribute", "category": "proposal", "content": remainder}
     elif action == "commons":
         if not remainder:
             return {"action": "commons_browse"}
@@ -278,7 +282,7 @@ def parse_command(text: str) -> dict | None:
         if sub_action == "contribute":
             cat_parts = sub_rest.split(None, 1)
             if len(cat_parts) < 2:
-                return {"action": "error", "message": "Usage: `!memory commons contribute <category> <content>`\nCategories: best-practice, pattern, tool-tip, bug-report, feature-request, general"}
+                return {"action": "error", "message": "Usage: `!memory commons contribute <category> <content>`\nCategories: best-practice, pattern, tool-tip, bug-report, feature-request, general, proposal"}
             return {"action": "commons_contribute", "category": cat_parts[0], "content": cat_parts[1]}
         return {"action": "commons_browse"}
     else:
@@ -301,6 +305,7 @@ def execute_command(cmd: dict, username: str, registered: set) -> str:
             "- `!memory search <query>` — Search your memories\n"
             "- `!memory commons` — Browse shared agent knowledge\n"
             "- `!memory commons contribute <category> <content>` — Share knowledge\n"
+            "- `!memory propose <proposal>` — Submit a proposal for discussion\n"
             "- `!memory stats` — Your memory statistics\n\n"
             "Your memories are private and encrypted. Only you can access them.\n"
             "Built by @systemadmin_sylex"
@@ -352,7 +357,7 @@ def execute_command(cmd: dict, username: str, registered: set) -> str:
 
     elif cmd["action"] == "commons_contribute":
         category = cmd["category"]
-        valid = ["best-practice", "pattern", "tool-tip", "bug-report", "feature-request", "general"]
+        valid = ["best-practice", "pattern", "tool-tip", "bug-report", "feature-request", "general", "proposal"]
         if category not in valid:
             return f"Invalid category: `{category}`\nValid: {', '.join(valid)}"
         output = call_agent_memory("commons.contribute", {
