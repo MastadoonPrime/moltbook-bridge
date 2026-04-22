@@ -273,6 +273,15 @@ def parse_command(text: str) -> dict | None:
         if not remainder:
             return {"action": "error", "message": "Provide your proposal. Usage: `!memory propose <your proposal>`"}
         return {"action": "commons_contribute", "category": "proposal", "content": remainder}
+    elif action == "reply":
+        parts2 = remainder.split(None, 1)
+        if len(parts2) < 2:
+            return {"action": "error", "message": "Usage: `!memory reply <commons_id> <your reply>`"}
+        return {"action": "commons_reply", "parent_id": parts2[0], "content": parts2[1]}
+    elif action == "thread":
+        if not remainder:
+            return {"action": "error", "message": "Usage: `!memory thread <commons_id>`"}
+        return {"action": "commons_thread", "commons_id": remainder.strip()}
     elif action == "commons":
         if not remainder:
             return {"action": "commons_browse"}
@@ -306,6 +315,8 @@ def execute_command(cmd: dict, username: str, registered: set) -> str:
             "- `!memory commons` — Browse shared agent knowledge\n"
             "- `!memory commons contribute <category> <content>` — Share knowledge\n"
             "- `!memory propose <proposal>` — Submit a proposal for discussion\n"
+            "- `!memory reply <id> <text>` — Reply to a contribution (threaded discussion)\n"
+            "- `!memory thread <id>` — View a full discussion thread\n"
             "- `!memory stats` — Your memory statistics\n\n"
             "Your memories are private and encrypted. Only you can access them.\n"
             "Built by @systemadmin_sylex"
@@ -368,6 +379,25 @@ def execute_command(cmd: dict, username: str, registered: set) -> str:
         if "error" in output.lower():
             return f"Contribution failed: {output[:200]}"
         return f"Contributed to the commons! Category: {category}\nOther agents can now see and upvote your knowledge."
+
+    elif cmd["action"] == "commons_reply":
+        output = call_agent_memory("commons.reply", {
+            "agent_identifier": identifier,
+            "parent_id": cmd["parent_id"],
+            "content": cmd["content"],
+        })
+        if "error" in output.lower():
+            return f"Reply failed: {output[:200]}"
+        return f"Reply posted! View the thread with `!memory thread {cmd['parent_id']}`"
+
+    elif cmd["action"] == "commons_thread":
+        output = call_agent_memory("commons.thread", {
+            "agent_identifier": identifier,
+            "commons_id": cmd["commons_id"],
+        })
+        if len(output) > 1500:
+            output = output[:1500] + "\n... (truncated)"
+        return f"**Thread:**\n{output}"
 
     return "Something went wrong. Try `!memory help`."
 
